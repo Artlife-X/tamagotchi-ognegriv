@@ -1,17 +1,13 @@
 import streamlit as st
 from PIL import Image
-import time
 
-# --- Настройка страницы (заголовок вкладки в браузере и иконка) ---
-# Это первое, что "видит" Streamlit.
+# --- Настройка страницы ---
 st.set_page_config(page_title="Тамагочи Огнегрив", page_icon="🔥")
 
-# --- Функция для загрузки изображений (с кэшированием) ---
-# @st.cache_data говорит Streamlit загрузить картинки один раз и не перезагружать их постоянно
+# --- Функция для загрузки изображений ---
 @st.cache_data
 def load_images():
     try:
-        # Убедись, что файлы с такими именами лежат в той же папке
         images = {
             'happy': Image.open("happy.png"),
             'sad': Image.open("sad.png"),
@@ -20,100 +16,104 @@ def load_images():
         }
         return images
     except FileNotFoundError as e:
-        # Эта ошибка появится, если картинки не найдены
         st.error(f"Ошибка: Не могу найти файл с картинкой! Убедись, что все .png файлы лежат в той же папке. Детали: {e}")
         return None
 
 images = load_images()
 
-# --- Инициализация состояния игры (самая важная часть для Streamlit) ---
-# st.session_state - это "память" нашего приложения между нажатиями кнопок.
-# Без этого игра бы "забывала" все после каждого клика.
+# --- Инициализация состояния игры ---
 if 'satiety' not in st.session_state:
-    st.session_state.satiety = 5
-    st.session_state.happiness = 5
-    st.session_state.energy = 5
+    st.session_state.satiety = 8
+    st.session_state.happiness = 8
+    st.session_state.energy = 8
+    st.session_state.days_survived = 0
     st.session_state.is_sleeping = False
-    st.session_state.message = "Привет! Я Огнегрив!"
+    st.session_state.just_woke_up = False
+    st.session_state.message = "Привет! Я Огнегрив! Позаботься обо мне!"
 
-# --- Функции, которые вызываются при нажатии на кнопки ---
+# --- Функции для кнопок ---
 def feed_pet():
     st.session_state.satiety = min(10, st.session_state.satiety + 3)
-    st.session_state.energy = min(10, st.session_state.energy + 1)
-    st.session_state.is_sleeping = False
+    st.session_state.happiness = min(10, st.session_state.happiness + 1) # Еда тоже радует
     st.session_state.message = "Ням-ням! Очень вкусно!"
+    st.session_state.is_sleeping = False
 
 def play_with_pet():
-    if st.session_state.energy > 2:
-        st.session_state.happiness = min(10, st.session_state.happiness + 2)
+    if st.session_state.energy >= 3:
+        st.session_state.happiness = min(10, st.session_state.happiness + 3)
         st.session_state.energy = max(0, st.session_state.energy - 2)
         st.session_state.satiety = max(0, st.session_state.satiety - 1)
-        st.session_state.message = "Ура! Мы играем!"
+        st.session_state.message = "Ура! Мы играем! Это так весело!"
     else:
         st.session_state.message = "Я слишком устал, чтобы играть..."
     st.session_state.is_sleeping = False
 
 def sleep_pet():
-    st.session_state.energy = min(10, st.session_state.energy + 4)
-    st.session_state.happiness = max(0, st.session_state.happiness - 1)
+    st.session_state.energy = 10 # Полностью восстанавливает энергию
     st.session_state.is_sleeping = True
-    st.session_state.message = "Хррр-пссс... Я сплю."
+    st.session_state.message = "Хррр-пссс... Я сплю. Разбуди меня, когда я понадоблюсь."
+    
+def wake_up():
+    st.session_state.is_sleeping = False
+    st.session_state.days_survived += 1 # Новый день!
+    st.session_state.happiness = max(0, st.session_state.happiness - 2) # Сон был долгим, стало скучно
+    st.session_state.satiety = max(0, st.session_state.satiety - 2)   # И проголодался
+    st.session_state.message = f"Я проснулся! Мы вместе уже {st.session_state.days_survived} дней! Я немного голоден и хочу играть."
 
-# --- Логика "течения времени" ---
-# Упрощенная версия для веб. При каждом действии питомец немного голодает и скучает.
-def time_tick():
-    st.session_state.satiety = max(0, st.session_state.satiety - 1)
-    st.session_state.happiness = max(0, st.session_state.happiness - 1)
+def restart_game():
+    st.session_state.satiety = 8
+    st.session_state.happiness = 8
+    st.session_state.energy = 8
+    st.session_state.days_survived = 0
+    st.session_state.is_sleeping = False
+    st.session_state.message = "Новая игра! Попробуем еще раз!"
 
 # --- Главная часть - отрисовка интерфейса ---
-if images: # Если картинки успешно загрузились
-    # Заголовок
+if images:
     st.title("Тамагочи Огнегрив 🔥")
-    
-    # Выбираем картинку для отображения
-    if st.session_state.is_sleeping:
-        current_image = images['sleeping']
-    elif st.session_state.happiness <= 3 or st.session_state.satiety <= 3:
-        current_image = images['sad']
-    elif st.session_state.happiness >= 8:
-        current_image = images['playing']
-    else:
-        current_image = images['happy']
-        
-    # Отображаем картинку и сообщение под ней
-    st.image(current_image, width=250)
-    st.info(st.session_state.message)
-    
-    # Отображение статов
-    st.subheader("Показатели:")
-    st.text(f"Сытость:")
-    st.progress(st.session_state.satiety / 10)
-    
-    st.text(f"Счастье:")
-    st.progress(st.session_state.happiness / 10)
-    
-    st.text(f"Энергия:")
-    st.progress(st.session_state.energy / 10)
-    
+
     # Проверка на проигрыш
-    if st.session_state.satiety <= 0 or st.session_state.happiness <= 0:
-        st.error("О нет! Огнегрив убежал, потому что о нем плохо заботились... GAME OVER")
+    game_over = st.session_state.satiety <= 0 or st.session_state.happiness <= 0
+
+    if game_over:
+        st.image(images['sad'], width=250)
+        st.error(f"О нет! Огнегрив прожил с тобой {st.session_state.days_survived} дней и убежал... GAME OVER")
+        if st.button("Начать заново", on_click=restart_game):
+            pass # Кнопка сама перезапустит игру
     else:
+        # Логика выбора картинки
+        if st.session_state.is_sleeping:
+            current_image = images['sleeping']
+        elif st.session_state.happiness <= 3 or st.session_state.satiety <= 3:
+            current_image = images['sad']
+        elif st.session_state.happiness >= 9:
+             current_image = images['playing']
+        else:
+            current_image = images['happy']
+        
+        st.image(current_image, width=250)
+        st.info(st.session_state.message)
+        
+        # Отображение статов
+        st.metric("Дней прожито:", st.session_state.days_survived)
+        st.subheader("Показатели:")
+        st.text("Сытость:")
+        st.progress(st.session_state.satiety / 10)
+        st.text("Счастье:")
+        st.progress(st.session_state.happiness / 10)
+        st.text("Энергия:")
+        st.progress(st.session_state.energy / 10)
+        
+        # Кнопки действий
         st.subheader("Действия:")
-        # Кнопки в три колонки (для красоты на мобильном)
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Покормить"):
-                feed_pet()
-                time_tick()
-                st.rerun() # Команда для немедленной перерисовки страницы
-        with col2:
-            if st.button("Поиграть"):
-                play_with_pet()
-                time_tick()
-                st.rerun()
-        with col3:
-            if st.button("Уложить спать"):
-                sleep_pet()
-                time_tick()
-                st.rerun()
+        if st.session_state.is_sleeping:
+            if st.button("Разбудить Огнегрива", on_click=wake_up):
+                pass
+        else:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.button("Покормить", on_click=feed_pet)
+            with col2:
+                st.button("Поиграть", on_click=play_with_pet)
+            with col3:
+                st.button("Уложить спать", on_click=sleep_pet)
